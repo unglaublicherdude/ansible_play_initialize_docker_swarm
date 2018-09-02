@@ -1,0 +1,40 @@
+---
+- hosts: all
+  roles:
+  - name: unglaublicherdude.ansible_role_docker_engine
+- hosts: manager
+  tasks:
+  - name: register docker info
+    shell: docker info
+    register: docker_info
+    changed_when: false
+  - name: initialize the swarm
+    shell: docker swarm init --advertise-addr {{ansible_default_ipv4.address}}
+    when: "docker_info.stdout.find('Swarm: inactive') != -1"
+  - name: "get docker swarm worker token"
+    shell: docker swarm join-token -q worker
+    register: worker_token
+  - name: "get docker swarm worker token"
+    shell: docker swarm join-token -q manager
+    register: manager_token
+  - name: add token-holder
+    add_host:
+      name: DOCKER_SWARM_TOKEN_HOLDER
+      groups: ANSIBLE_DUMMY_HOSTS
+      worker_token: "{{worker_token.stdout}}"
+      manager_token: "{{manager_token.stdout}}"
+      ip: "{{ansible_default_ipv4.address}}"
+    when:
+    - "not hostvars['DOCKER_SWARM_TOKEN_HOLDER']"
+
+- hosts: worker
+  tasks:
+  - name: register docker info
+    shell: docker info
+    register: docker_info
+    changed_when: false
+  - name: "join as a worker"
+    shell: "docker swarm join --token {{hostvars['DOCKER_SWARM_TOKEN_HOLDER']['worker_token']}} {{hostvars['DOCKER_SWARM_TOKEN_HOLDER']['ip']}}:2377"
+    when: "docker_info.stdout.find('Swarm: inactive') != -1"
+    retries: 3
+    delay: 20
