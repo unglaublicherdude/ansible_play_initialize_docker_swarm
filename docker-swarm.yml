@@ -10,7 +10,9 @@
     changed_when: false
   - name: initialize the swarm
     shell: docker swarm init --advertise-addr {{ansible_default_ipv4.address}}
-    when: "docker_info.stdout.find('Swarm: inactive') != -1"
+    when:
+    - "docker_info.stdout.find('Swarm: inactive') != -1"
+    - "not hostvars['DOCKER_SWARM_TOKEN_HOLDER']"
   - name: "get docker swarm worker token"
     shell: docker swarm join-token -q worker
     register: worker_token
